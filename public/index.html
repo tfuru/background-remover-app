@@ -89,7 +89,7 @@
                 <!-- Upload Area -->
                 <div id="upload-area">
                     <div id="drop-zone" class="drop-zone w-full h-64 rounded-xl flex flex-col items-center justify-center text-center cursor-pointer bg-gray-50 hover:bg-gray-100">
-                        <svg class="w-16 h-16 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+                        <svg class="w-16 h-16 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4_0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
                         <p class="text-gray-700 font-semibold">クリックして画像を選択</p>
                         <p class="text-gray-500 text-sm">またはドラッグ＆ドロップ</p>
                     </div>
@@ -100,8 +100,14 @@
                 <div id="preview-area" class="hidden">
                     <h2 class="text-xl font-semibold text-center mb-2">プレビュー</h2>
                     <p class="text-center text-sm text-gray-500 mb-3">
-                        元のサイズ: <span id="original-size-info"></span> &rarr; 縮小後: <span id="preview-size-info"></span>
+                        元のサイズ: <span id="original-size-info"></span> &rarr; 処理サイズ: <span id="preview-size-info"></span>
                     </p>
+                    <div class="flex items-center justify-center mb-4">
+                        <input id="crop-checkbox" type="checkbox" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
+                        <label for="crop-checkbox" class="ml-2 block text-sm text-gray-900">
+                            被写体を余白なく正方形に切り抜く
+                        </label>
+                    </div>
                     <div class="max-w-lg mx-auto bg-gray-200 rounded-lg overflow-hidden">
                        <img id="preview-image" src="" alt="Preview" class="w-full h-full object-contain">
                     </div>
@@ -138,6 +144,10 @@
                             </div>
                         </div>
                     </div>
+                    <div id="slider-area" class="hidden mt-6 max-w-md mx-auto">
+                        <label for="tolerance-slider" class="block text-sm font-medium text-gray-700">透過の許容範囲: <span id="tolerance-value">20</span></label>
+                        <input id="tolerance-slider" type="range" min="0" max="100" value="20" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                    </div>
                     <div id="controls" class="text-center mt-8 hidden">
                         <a id="download-btn" href="#" download="background-removed.png" class="inline-block bg-indigo-600 text-white font-bold py-3 px-8 rounded-lg shadow-md hover:bg-indigo-700 transition-transform transform hover:scale-105 mr-4">ダウンロード</a>
                         <button id="reset-btn" class="inline-block bg-gray-200 text-gray-800 font-bold py-3 px-8 rounded-lg hover:bg-gray-300 transition">別の画像を試す</button>
@@ -150,8 +160,10 @@
     <div id="message-box" class="message-box"></div>
 
     <script>
-        // グローバル変数としてAPIキーを保持
+        // グローバル変数
         let userApiKey = '';
+        let aiGeneratedImageUrl = '';
+        let originalUploadedImageUrl = '';
 
         // DOM要素の取得
         const apiKeyArea = document.getElementById('api-key-area');
@@ -172,6 +184,8 @@
         const originalSizeInfo = document.getElementById('original-size-info');
         const previewSizeInfo = document.getElementById('preview-size-info');
         const finalOriginalSizeInfo = document.getElementById('final-original-size-info');
+        
+        const cropCheckbox = document.getElementById('crop-checkbox');
 
         const resultArea = document.getElementById('result-area');
         const loadingSpinner = document.getElementById('loading-spinner');
@@ -181,7 +195,10 @@
         const controls = document.getElementById('controls');
         const downloadBtn = document.getElementById('download-btn');
         const resetBtn = document.getElementById('reset-btn');
-        const messageBox = document.getElementById('message-box');
+        
+        const sliderArea = document.getElementById('slider-area');
+        const toleranceSlider = document.getElementById('tolerance-slider');
+        const toleranceValue = document.getElementById('tolerance-value');
 
         // --- 初期化処理 ---
         document.addEventListener('DOMContentLoaded', () => {
@@ -252,6 +269,7 @@
             loadingSpinner.classList.remove('hidden');
             imageDisplay.classList.add('hidden');
             controls.classList.add('hidden');
+            sliderArea.classList.add('hidden');
             
             originalImage.src = resizedBase64Image;
             finalOriginalSizeInfo.textContent = previewSizeInfo.textContent;
@@ -261,6 +279,27 @@
 
         cancelBtn.addEventListener('click', resetUI);
         resetBtn.addEventListener('click', resetUI);
+
+        toleranceSlider.addEventListener('input', async (e) => {
+            const newTolerance = parseInt(e.target.value, 10);
+            toleranceValue.textContent = newTolerance;
+            if (aiGeneratedImageUrl) {
+                let processedImageUrl = await forceTransparency(aiGeneratedImageUrl, newTolerance);
+                if (cropCheckbox.checked) {
+                    processedImageUrl = await cropSubjectToSquare(processedImageUrl);
+                }
+                resultImage.src = processedImageUrl;
+                downloadBtn.href = processedImageUrl;
+            }
+        });
+
+        cropCheckbox.addEventListener('change', () => {
+            if (originalUploadedImageUrl) {
+                resizeImage(originalUploadedImageUrl, (resizedBase64) => {
+                    previewImage.src = resizedBase64;
+                });
+            }
+        });
 
         // --- メインロジック ---
         function showMessage(message, type = 'error') {
@@ -283,9 +322,9 @@
 
             const reader = new FileReader();
             reader.onload = (e) => {
-                const base64Image = e.target.result;
+                originalUploadedImageUrl = e.target.result;
                 
-                resizeImage(base64Image, (resizedBase64) => {
+                resizeImage(originalUploadedImageUrl, (resizedBase64) => {
                     previewImage.src = resizedBase64;
                     
                     uploadArea.classList.add('hidden');
@@ -303,16 +342,15 @@
             img.onload = () => {
                 const originalWidth = img.width;
                 const originalHeight = img.height;
+                
                 let width = originalWidth;
                 let height = originalHeight;
 
-                if (width > height) {
-                    if (width > MAX_DIMENSION) {
+                if (width > MAX_DIMENSION || height > MAX_DIMENSION) {
+                    if (width > height) {
                         height *= MAX_DIMENSION / width;
                         width = MAX_DIMENSION;
-                    }
-                } else {
-                    if (height > MAX_DIMENSION) {
+                    } else {
                         width *= MAX_DIMENSION / height;
                         height = MAX_DIMENSION;
                     }
@@ -340,6 +378,129 @@
             };
         }
 
+        // ★修正: 背景色判定ロジックを改善
+        function forceTransparency(base64Image, tolerance) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.src = base64Image;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const { width, height } = img;
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0);
+
+                    const imageData = ctx.getImageData(0, 0, width, height);
+                    const data = imageData.data;
+
+                    // ピクセルデータを取得するヘルパー関数
+                    const getPixel = (x, y) => {
+                        const index = (y * width + x) * 4;
+                        return { r: data[index], g: data[index + 1], b: data[index + 2] };
+                    };
+
+                    // 四隅の色をサンプリング
+                    const corners = [
+                        getPixel(0, 0),
+                        getPixel(width - 1, 0),
+                        getPixel(0, height - 1),
+                        getPixel(width - 1, height - 1)
+                    ];
+
+                    // 最も頻度の高い色を背景色として特定
+                    const colorCounts = {};
+                    let maxCount = 0;
+                    let bgColor = corners[0]; // デフォルトは左上
+
+                    corners.forEach(corner => {
+                        const key = `${corner.r},${corner.g},${corner.b}`;
+                        colorCounts[key] = (colorCounts[key] || 0) + 1;
+                        if (colorCounts[key] > maxCount) {
+                            maxCount = colorCounts[key];
+                            bgColor = corner;
+                        }
+                    });
+
+                    const { r, g, b } = bgColor;
+
+                    for (let i = 0; i < data.length; i += 4) {
+                        const red = data[i];
+                        const green = data[i + 1];
+                        const blue = data[i + 2];
+
+                        if (Math.abs(red - r) < tolerance &&
+                            Math.abs(green - g) < tolerance &&
+                            Math.abs(blue - b) < tolerance) {
+                            data[i + 3] = 0; // Alphaチャンネルを0に
+                        }
+                    }
+                    ctx.putImageData(imageData, 0, 0);
+                    resolve(canvas.toDataURL('image/png'));
+                };
+                img.onerror = () => {
+                    reject(new Error('AIが生成した画像の読み込みに失敗しました。'));
+                };
+            });
+        }
+
+        function cropSubjectToSquare(base64Image) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.src = base64Image;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0);
+
+                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    const data = imageData.data;
+
+                    let minX = canvas.width, minY = canvas.height, maxX = 0, maxY = 0;
+
+                    for (let y = 0; y < canvas.height; y++) {
+                        for (let x = 0; x < canvas.width; x++) {
+                            const alpha = data[(y * canvas.width + x) * 4 + 3];
+                            if (alpha > 50) {
+                                minX = Math.min(minX, x);
+                                minY = Math.min(minY, y);
+                                maxX = Math.max(maxX, x);
+                                maxY = Math.max(maxY, y);
+                            }
+                        }
+                    }
+
+                    const contentWidth = maxX - minX + 1;
+                    const contentHeight = maxY - minY + 1;
+
+                    if (contentWidth <= 0 || contentHeight <= 0) {
+                        resolve(base64Image);
+                        return;
+                    }
+
+                    const squareSize = Math.max(contentWidth, contentHeight);
+
+                    const newCanvas = document.createElement('canvas');
+                    newCanvas.width = squareSize;
+                    newCanvas.height = squareSize;
+                    const newCtx = newCanvas.getContext('2d');
+
+                    const destX = (squareSize - contentWidth) / 2;
+                    const destY = (squareSize - contentHeight) / 2;
+
+                    newCtx.drawImage(canvas, minX, minY, contentWidth, contentHeight, destX, destY, contentWidth, contentHeight);
+
+                    resolve(newCanvas.toDataURL('image/png'));
+                };
+                img.onerror = () => {
+                    reject(new Error('切り抜き処理用の画像の読み込みに失敗しました。'));
+                };
+            });
+        }
+
+
         async function removeBackground(base64ImageData, mimeType) {
             if (!userApiKey) {
                 showMessage('APIキーが設定されていません。');
@@ -350,14 +511,13 @@
             
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview-image-generation:generateContent?key=${userApiKey}`;
             const pureBase64 = base64ImageData.split(',')[1];
-
-            // ★修正点: AIへの指示をより厳密に変更
-            const newPrompt = "Strictly follow this instruction: Isolate the main subject from the background in the provided image. Generate a new image as a PNG file. In this new image, the main subject must be perfectly preserved, and the entire background must be 100% transparent. Do not add any shadows or effects to the background.";
+            
+            const promptText = "Your task is to act as a precise background removal tool. Isolate the main subject from the background in the provided image. The subject itself must remain completely unmodified, without any color changes, filtering, or alterations. The output must be a PNG image where the subject is perfectly preserved and the entire background is set to a solid, uniform color, preferably white. There should be no residual colors, shadows, or effects on the background. The only change should be the complete removal of the background.";
 
             const payload = {
                 contents: [{
                     parts: [
-                        { text: newPrompt },
+                        { text: promptText },
                         { inlineData: { mimeType: mimeType, data: pureBase64 } }
                     ]
                 }],
@@ -395,13 +555,25 @@
                 const imagePart = result?.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
 
                 if (imagePart) {
-                    const imageUrl = `data:image/png;base64,${imagePart.inlineData.data}`;
-                    resultImage.src = imageUrl;
-                    downloadBtn.href = imageUrl;
+                    aiGeneratedImageUrl = `data:image/png;base64,${imagePart.inlineData.data}`;
+                    
+                    const defaultTolerance = 20;
+                    toleranceSlider.value = defaultTolerance;
+                    toleranceValue.textContent = defaultTolerance;
+
+                    let processedImageUrl = await forceTransparency(aiGeneratedImageUrl, defaultTolerance);
+
+                    if (cropCheckbox.checked) {
+                        processedImageUrl = await cropSubjectToSquare(processedImageUrl);
+                    }
+
+                    resultImage.src = processedImageUrl;
+                    downloadBtn.href = processedImageUrl;
 
                     loadingSpinner.classList.add('hidden');
                     imageDisplay.classList.remove('hidden');
                     controls.classList.remove('hidden');
+                    sliderArea.classList.remove('hidden');
                 } else {
                     console.error("API response did not contain image data:", result);
                     throw new Error('APIから有効な画像データが返されませんでした。');
@@ -418,6 +590,10 @@
             uploadArea.classList.remove('hidden');
             previewArea.classList.add('hidden');
             resultArea.classList.add('hidden');
+            
+            aiGeneratedImageUrl = '';
+            originalUploadedImageUrl = '';
+            cropCheckbox.checked = false;
             
             imageUpload.value = '';
             previewImage.src = '';
