@@ -351,14 +351,16 @@
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview-image-generation:generateContent?key=${userApiKey}`;
             const pureBase64 = base64ImageData.split(',')[1];
 
+            // ★修正点: AIへの指示をより厳密に変更
+            const newPrompt = "Strictly follow this instruction: Isolate the main subject from the background in the provided image. Generate a new image as a PNG file. In this new image, the main subject must be perfectly preserved, and the entire background must be 100% transparent. Do not add any shadows or effects to the background.";
+
             const payload = {
                 contents: [{
                     parts: [
-                        { text: "Remove the background from the following image and make it transparent. The output should be a PNG with a transparent background." },
+                        { text: newPrompt },
                         { inlineData: { mimeType: mimeType, data: pureBase64 } }
                     ]
                 }],
-                // ★修正点: APIの仕様に合わせて['IMAGE', 'TEXT']に変更
                 generationConfig: { responseModalities: ['IMAGE', 'TEXT'] },
             };
 
