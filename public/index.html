@@ -96,6 +96,25 @@
                     <input type="file" id="image-upload" class="hidden" accept="image/png, image/jpeg, image/webp">
                 </div>
 
+                <!-- Preview Area -->
+                <div id="preview-area" class="hidden">
+                    <h2 class="text-xl font-semibold text-center mb-2">プレビュー</h2>
+                    <p class="text-center text-sm text-gray-500 mb-3">
+                        元のサイズ: <span id="original-size-info"></span> &rarr; 縮小後: <span id="preview-size-info"></span>
+                    </p>
+                    <div class="max-w-lg mx-auto bg-gray-200 rounded-lg overflow-hidden">
+                       <img id="preview-image" src="" alt="Preview" class="w-full h-full object-contain">
+                    </div>
+                    <div class="text-center mt-6">
+                        <button id="process-btn" class="bg-indigo-600 text-white font-bold py-3 px-8 rounded-lg shadow-md hover:bg-indigo-700 transition-transform transform hover:scale-105 mr-4">
+                            背景を透過する
+                        </button>
+                        <button id="cancel-btn" class="bg-gray-200 text-gray-800 font-bold py-3 px-8 rounded-lg hover:bg-gray-300 transition">
+                            別の画像を試す
+                        </button>
+                    </div>
+                </div>
+
                 <!-- Processing and Result Area -->
                 <div id="result-area" class="hidden">
                     <div id="loading-spinner" class="flex flex-col items-center justify-center text-center hidden">
@@ -104,7 +123,10 @@
                     </div>
                     <div id="image-display" class="grid grid-cols-1 md:grid-cols-2 gap-8 hidden">
                         <div>
-                            <h2 class="text-xl font-semibold text-center mb-4">元画像</h2>
+                            <h2 class="text-xl font-semibold text-center mb-2">処理対象の画像</h2>
+                            <p class="text-center text-sm text-gray-500 mb-3">
+                                サイズ: <span id="final-original-size-info"></span>
+                            </p>
                             <div class="aspect-w-1 aspect-h-1 bg-gray-200 rounded-lg overflow-hidden">
                                <img id="original-image" src="" alt="Original" class="w-full h-full object-contain">
                             </div>
@@ -128,16 +150,29 @@
     <div id="message-box" class="message-box"></div>
 
     <script>
+        // グローバル変数としてAPIキーを保持
         let userApiKey = '';
 
+        // DOM要素の取得
         const apiKeyArea = document.getElementById('api-key-area');
         const appContent = document.getElementById('app-content');
         const apiKeyInput = document.getElementById('api-key-input');
         const saveApiKeyBtn = document.getElementById('save-api-key-btn');
         const changeApiKeyBtn = document.getElementById('change-api-key-btn');
+        
         const dropZone = document.getElementById('drop-zone');
         const imageUpload = document.getElementById('image-upload');
         const uploadArea = document.getElementById('upload-area');
+        
+        const previewArea = document.getElementById('preview-area');
+        const previewImage = document.getElementById('preview-image');
+        const processBtn = document.getElementById('process-btn');
+        const cancelBtn = document.getElementById('cancel-btn');
+
+        const originalSizeInfo = document.getElementById('original-size-info');
+        const previewSizeInfo = document.getElementById('preview-size-info');
+        const finalOriginalSizeInfo = document.getElementById('final-original-size-info');
+
         const resultArea = document.getElementById('result-area');
         const loadingSpinner = document.getElementById('loading-spinner');
         const imageDisplay = document.getElementById('image-display');
@@ -148,6 +183,7 @@
         const resetBtn = document.getElementById('reset-btn');
         const messageBox = document.getElementById('message-box');
 
+        // --- 初期化処理 ---
         document.addEventListener('DOMContentLoaded', () => {
             const savedKey = localStorage.getItem('geminiApiKey');
             if (savedKey) {
@@ -158,6 +194,7 @@
             }
         });
 
+        // --- UI表示切り替え関数 ---
         function showApiKeyArea() {
             apiKeyArea.classList.remove('hidden');
             appContent.classList.add('hidden');
@@ -169,6 +206,7 @@
             resetUI();
         }
 
+        // --- イベントリスナーの設定 ---
         saveApiKeyBtn.addEventListener('click', () => {
             const key = apiKeyInput.value.trim();
             if (key) {
@@ -181,10 +219,12 @@
         });
 
         changeApiKeyBtn.addEventListener('click', () => {
-            userApiKey = '';
-            localStorage.removeItem('geminiApiKey');
-            apiKeyInput.value = '';
-            showApiKeyArea();
+             if (confirm('APIキーを削除して再入力しますか？')) {
+                userApiKey = '';
+                localStorage.removeItem('geminiApiKey');
+                apiKeyInput.value = '';
+                showApiKeyArea();
+            }
         });
         
         dropZone.addEventListener('click', () => imageUpload.click());
@@ -203,8 +243,26 @@
             const file = e.dataTransfer.files[0];
             if (file) handleFile(file);
         });
+        
+        processBtn.addEventListener('click', () => {
+            const resizedBase64Image = previewImage.src;
+            
+            previewArea.classList.add('hidden');
+            resultArea.classList.remove('hidden');
+            loadingSpinner.classList.remove('hidden');
+            imageDisplay.classList.add('hidden');
+            controls.classList.add('hidden');
+            
+            originalImage.src = resizedBase64Image;
+            finalOriginalSizeInfo.textContent = previewSizeInfo.textContent;
+
+            removeBackground(resizedBase64Image, 'image/png');
+        });
+
+        cancelBtn.addEventListener('click', resetUI);
         resetBtn.addEventListener('click', resetUI);
 
+        // --- メインロジック ---
         function showMessage(message, type = 'error') {
             messageBox.textContent = message;
             messageBox.className = `message-box ${type} show`;
@@ -226,16 +284,13 @@
             const reader = new FileReader();
             reader.onload = (e) => {
                 const base64Image = e.target.result;
-                originalImage.src = base64Image;
                 
-                uploadArea.classList.add('hidden');
-                resultArea.classList.remove('hidden');
-                loadingSpinner.classList.remove('hidden');
-                imageDisplay.classList.add('hidden');
-                controls.classList.add('hidden');
-
                 resizeImage(base64Image, (resizedBase64) => {
-                    removeBackground(resizedBase64, 'image/jpeg');
+                    previewImage.src = resizedBase64;
+                    
+                    uploadArea.classList.add('hidden');
+                    previewArea.classList.remove('hidden');
+                    resultArea.classList.add('hidden');
                 });
             };
             reader.readAsDataURL(file);
@@ -246,8 +301,10 @@
             const img = new Image();
             img.src = base64Str;
             img.onload = () => {
-                let width = img.width;
-                let height = img.height;
+                const originalWidth = img.width;
+                const originalHeight = img.height;
+                let width = originalWidth;
+                let height = originalHeight;
 
                 if (width > height) {
                     if (width > MAX_DIMENSION) {
@@ -260,6 +317,9 @@
                         height = MAX_DIMENSION;
                     }
                 }
+                
+                width = Math.round(width);
+                height = Math.round(height);
 
                 const canvas = document.createElement('canvas');
                 canvas.width = width;
@@ -267,7 +327,11 @@
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(img, 0, 0, width, height);
                 
-                const resizedBase64 = canvas.toDataURL('image/jpeg', 0.9);
+                const resizedBase64 = canvas.toDataURL('image/png');
+                
+                originalSizeInfo.textContent = `${originalWidth} x ${originalHeight}`;
+                previewSizeInfo.textContent = `${width} x ${height}`;
+
                 callback(resizedBase64);
             };
             img.onerror = () => {
@@ -294,7 +358,7 @@
                         { inlineData: { mimeType: mimeType, data: pureBase64 } }
                     ]
                 }],
-                // ★修正点: エラーメッセージに基づき、TEXTを追加
+                // ★修正点: APIの仕様に合わせて['IMAGE', 'TEXT']に変更
                 generationConfig: { responseModalities: ['IMAGE', 'TEXT'] },
             };
 
@@ -306,13 +370,23 @@
                 });
 
                 if (!response.ok) {
-                    const errorBody = await response.json().catch(() => response.text());
-                    console.error('Full API Error Response:', errorBody);
-                    const specificMessage = errorBody?.error?.message || '不明なエラーが発生しました。';
-                    if (response.status === 400) {
-                         throw new Error(`リクエストが無効です: ${specificMessage} (${response.status})`);
+                    let errorText = `APIリクエストに失敗しました (ステータス: ${response.status})`;
+                    try {
+                        const errorBody = await response.json();
+                        console.error("API Error Response:", errorBody);
+                        if (errorBody.error && errorBody.error.message) {
+                            errorText = `APIエラー: ${errorBody.error.message}`;
+                        }
+                    } catch (e) {
+                        console.error("Could not parse error response:", e);
+                        errorText = `APIリクエストに失敗しました: ${response.status} ${response.statusText}`;
                     }
-                    throw new Error(`${specificMessage} (ステータス: ${response.status})`);
+                    if (response.status === 400) {
+                        errorText += " (APIキーが無効、請求が未設定、またはリクエスト形式に問題がある可能性があります)";
+                    } else if (response.status === 403) {
+                        errorText += " (APIの権限がない可能性があります)";
+                    }
+                    throw new Error(errorText);
                 }
 
                 const result = await response.json();
@@ -327,9 +401,11 @@
                     imageDisplay.classList.remove('hidden');
                     controls.classList.remove('hidden');
                 } else {
+                    console.error("API response did not contain image data:", result);
                     throw new Error('APIから有効な画像データが返されませんでした。');
                 }
-            } catch (error) {
+            } catch (error)
+            {
                 console.error('処理に失敗:', error);
                 showMessage(error.message);
                 resetUI();
@@ -338,11 +414,12 @@
 
         function resetUI() {
             uploadArea.classList.remove('hidden');
+            previewArea.classList.add('hidden');
             resultArea.classList.add('hidden');
-            loadingSpinner.classList.add('hidden');
-            imageDisplay.classList.add('hidden');
-            controls.classList.add('hidden');
+            
             imageUpload.value = '';
+            previewImage.src = '';
+            originalImage.src = '';
             resultImage.src = '';
             downloadBtn.href = '#';
         }
