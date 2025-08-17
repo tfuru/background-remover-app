@@ -1,351 +1,89 @@
 <!DOCTYPE html>
-<html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>背景透過アプリ</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-        }
-        .drop-zone {
-            border: 2px dashed #cbd5e1;
-            transition: all 0.3s ease;
-        }
-        .drop-zone.drag-over {
-            border-color: #4f46e5;
-            background-color: #eef2ff;
-        }
-        .loader {
-            border: 5px solid #f3f3f3;
-            border-top: 5px solid #4f46e5;
-            border-radius: 50%;
-            width: 50px;
-            height: 50px;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        /* メッセージボックス用のスタイル */
-        .message-box {
-            position: fixed;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            padding: 12px 20px;
-            border-radius: 8px;
-            color: white;
-            z-index: 1000;
-            opacity: 0;
-            transition: opacity 0.5s, top 0.5s;
-            pointer-events: none;
-            max-width: 90%;
-        }
-        .message-box.error {
-            background-color: #ef4444; /* red-500 */
-        }
-        .message-box.show {
-            opacity: 1;
-            top: 40px;
-        }
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Welcome to Firebase Hosting</title>
+
+    <!-- update the version number as needed -->
+    <script defer src="/__/firebase/12.1.0/firebase-app-compat.js"></script>
+    <!-- include only the Firebase features as you need -->
+    <script defer src="/__/firebase/12.1.0/firebase-auth-compat.js"></script>
+    <script defer src="/__/firebase/12.1.0/firebase-database-compat.js"></script>
+    <script defer src="/__/firebase/12.1.0/firebase-firestore-compat.js"></script>
+    <script defer src="/__/firebase/12.1.0/firebase-functions-compat.js"></script>
+    <script defer src="/__/firebase/12.1.0/firebase-messaging-compat.js"></script>
+    <script defer src="/__/firebase/12.1.0/firebase-storage-compat.js"></script>
+    <script defer src="/__/firebase/12.1.0/firebase-analytics-compat.js"></script>
+    <script defer src="/__/firebase/12.1.0/firebase-remote-config-compat.js"></script>
+    <script defer src="/__/firebase/12.1.0/firebase-performance-compat.js"></script>
+    <!-- 
+      initialize the SDK after all desired features are loaded, set useEmulator to false
+      to avoid connecting the SDK to running emulators.
+    -->
+    <script defer src="/__/firebase/init.js?useEmulator=true"></script>
+
+    <style media="screen">
+      body { background: #ECEFF1; color: rgba(0,0,0,0.87); font-family: Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 0; }
+      #message { background: white; max-width: 360px; margin: 100px auto 16px; padding: 32px 24px; border-radius: 3px; }
+      #message h2 { color: #ffa100; font-weight: bold; font-size: 16px; margin: 0 0 8px; }
+      #message h1 { font-size: 22px; font-weight: 300; color: rgba(0,0,0,0.6); margin: 0 0 16px;}
+      #message p { line-height: 140%; margin: 16px 0 24px; font-size: 14px; }
+      #message a { display: block; text-align: center; background: #039be5; text-transform: uppercase; text-decoration: none; color: white; padding: 16px; border-radius: 4px; }
+      #message, #message a { box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24); }
+      #load { color: rgba(0,0,0,0.4); text-align: center; font-size: 13px; }
+      @media (max-width: 600px) {
+        body, #message { margin-top: 0; background: white; box-shadow: none; }
+        body { border-top: 16px solid #ffa100; }
+      }
     </style>
-</head>
-<body class="bg-gray-100 text-gray-800 flex items-center justify-center min-h-screen p-4">
-
-    <div class="w-full max-w-4xl mx-auto bg-white rounded-2xl shadow-xl p-6 md:p-10">
-        
-        <!-- APIキー入力エリア -->
-        <div id="api-key-area">
-            <header class="text-center mb-6">
-                <h1 class="text-3xl md:text-4xl font-bold text-gray-900">ようこそ</h1>
-                <p class="text-gray-600 mt-2">まず、Gemini APIキーを入力してください。</p>
-            </header>
-            <div class="max-w-md mx-auto">
-                <label for="api-key-input" class="block text-sm font-medium text-gray-700">Gemini API Key</label>
-                <input type="password" id="api-key-input" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="APIキーをここに貼り付け">
-                <button id="save-api-key-btn" class="mt-4 w-full bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-indigo-700 transition">
-                    APIキーを保存して開始
-                </button>
-                <p class="text-xs text-gray-500 mt-3 text-center">APIキーはあなたのブラウザにのみ保存されます。サーバーには送信されません。</p>
-                <p class="text-sm text-gray-500 mt-4 text-center">
-                    APIキーをお持ちでないですか？ <a href="https://aistudio.google.com/" target="_blank" rel="noopener noreferrer" class="text-indigo-600 hover:underline">Google AI Studioで取得</a>
-                </p>
-            </div>
-        </div>
-
-        <!-- メインアプリコンテンツエリア -->
-        <div id="app-content" class="hidden">
-            <header class="text-center mb-8 relative">
-                <h1 class="text-3xl md:text-4xl font-bold text-gray-900">背景透過ツール</h1>
-                <p class="text-gray-600 mt-2">画像をアップロードして、被写体を自動で切り抜きます。</p>
-                <button id="change-api-key-btn" class="absolute top-0 right-0 text-sm text-indigo-600 hover:underline">APIキーを変更</button>
-            </header>
-
-            <main id="main-content">
-                <!-- Upload Area -->
-                <div id="upload-area">
-                    <div id="drop-zone" class="drop-zone w-full h-64 rounded-xl flex flex-col items-center justify-center text-center cursor-pointer bg-gray-50 hover:bg-gray-100">
-                        <svg class="w-16 h-16 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
-                        <p class="text-gray-700 font-semibold">クリックして画像を選択</p>
-                        <p class="text-gray-500 text-sm">またはドラッグ＆ドロップ</p>
-                    </div>
-                    <input type="file" id="image-upload" class="hidden" accept="image/png, image/jpeg, image/webp">
-                </div>
-
-                <!-- Processing and Result Area -->
-                <div id="result-area" class="hidden">
-                    <div id="loading-spinner" class="flex flex-col items-center justify-center text-center hidden">
-                        <div class="loader"></div>
-                        <p class="mt-4 text-gray-600 font-medium">背景を処理中です...</p>
-                    </div>
-                    <div id="image-display" class="grid grid-cols-1 md:grid-cols-2 gap-8 hidden">
-                        <div>
-                            <h2 class="text-xl font-semibold text-center mb-4">元画像</h2>
-                            <div class="aspect-w-1 aspect-h-1 bg-gray-200 rounded-lg overflow-hidden">
-                               <img id="original-image" src="" alt="Original" class="w-full h-full object-contain">
-                            </div>
-                        </div>
-                        <div>
-                            <h2 class="text-xl font-semibold text-center mb-4">背景透過後</h2>
-                            <div class="aspect-w-1 aspect-h-1 rounded-lg overflow-hidden" style="background-image: url('data:image/svg+xml,%3Csvg width=\'20\' height=\'20\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Crect width=\'10\' height=\'10\' fill=\'%23eee\'/%3E%3Crect x=\'10\' y=\'10\' width=\'10\' height=\'10\' fill=\'%23eee\'/%3E%3C/svg%3E');">
-                               <img id="result-image" src="" alt="Result" class="w-full h-full object-contain">
-                            </div>
-                        </div>
-                    </div>
-                    <div id="controls" class="text-center mt-8 hidden">
-                        <a id="download-btn" href="#" download="background-removed.png" class="inline-block bg-indigo-600 text-white font-bold py-3 px-8 rounded-lg shadow-md hover:bg-indigo-700 transition-transform transform hover:scale-105 mr-4">ダウンロード</a>
-                        <button id="reset-btn" class="inline-block bg-gray-200 text-gray-800 font-bold py-3 px-8 rounded-lg hover:bg-gray-300 transition">別の画像を試す</button>
-                    </div>
-                </div>
-            </main>
-        </div>
+  </head>
+  <body>
+    <div id="message">
+      <h2>Welcome</h2>
+      <h1>Firebase Hosting Setup Complete</h1>
+      <p>You're seeing this because you've successfully setup Firebase Hosting. Now it's time to go build something extraordinary!</p>
+      <a target="_blank" href="https://firebase.google.com/docs/hosting/">Open Hosting Documentation</a>
     </div>
-    <!-- メッセージ表示用の要素 -->
-    <div id="message-box" class="message-box"></div>
+    <p id="load">Firebase SDK Loading&hellip;</p>
 
     <script>
-        let userApiKey = '';
+      document.addEventListener('DOMContentLoaded', function() {
+        const loadEl = document.querySelector('#load');
+        // // 🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥
+        // // The Firebase SDK is initialized and available here!
+        //
+        // firebase.auth().onAuthStateChanged(user => { });
+        // firebase.database().ref('/path/to/ref').on('value', snapshot => { });
+        // firebase.firestore().doc('/foo/bar').get().then(() => { });
+        // firebase.functions().httpsCallable('yourFunction')().then(() => { });
+        // firebase.messaging().requestPermission().then(() => { });
+        // firebase.storage().ref('/path/to/ref').getDownloadURL().then(() => { });
+        // firebase.analytics(); // call to activate
+        // firebase.analytics().logEvent('tutorial_completed');
+        // firebase.performance(); // call to activate
+        //
+        // // 🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥
 
-        const apiKeyArea = document.getElementById('api-key-area');
-        const appContent = document.getElementById('app-content');
-        const apiKeyInput = document.getElementById('api-key-input');
-        const saveApiKeyBtn = document.getElementById('save-api-key-btn');
-        const changeApiKeyBtn = document.getElementById('change-api-key-btn');
-        const dropZone = document.getElementById('drop-zone');
-        const imageUpload = document.getElementById('image-upload');
-        const uploadArea = document.getElementById('upload-area');
-        const resultArea = document.getElementById('result-area');
-        const loadingSpinner = document.getElementById('loading-spinner');
-        const imageDisplay = document.getElementById('image-display');
-        const originalImage = document.getElementById('original-image');
-        const resultImage = document.getElementById('result-image');
-        const controls = document.getElementById('controls');
-        const downloadBtn = document.getElementById('download-btn');
-        const resetBtn = document.getElementById('reset-btn');
-        const messageBox = document.getElementById('message-box');
-
-        document.addEventListener('DOMContentLoaded', () => {
-            const savedKey = localStorage.getItem('geminiApiKey');
-            if (savedKey) {
-                userApiKey = savedKey;
-                showAppContent();
-            } else {
-                showApiKeyArea();
-            }
-        });
-
-        function showApiKeyArea() {
-            apiKeyArea.classList.remove('hidden');
-            appContent.classList.add('hidden');
+        try {
+          let app = firebase.app();
+          let features = [
+            'auth', 
+            'database', 
+            'firestore',
+            'functions',
+            'messaging', 
+            'storage', 
+            'analytics', 
+            'remoteConfig',
+            'performance',
+          ].filter(feature => typeof app[feature] === 'function');
+          loadEl.textContent = `Firebase SDK loaded with ${features.join(', ')}`;
+        } catch (e) {
+          console.error(e);
+          loadEl.textContent = 'Error loading the Firebase SDK, check the console.';
         }
-
-        function showAppContent() {
-            apiKeyArea.classList.add('hidden');
-            appContent.classList.remove('hidden');
-            resetUI();
-        }
-
-        saveApiKeyBtn.addEventListener('click', () => {
-            const key = apiKeyInput.value.trim();
-            if (key) {
-                userApiKey = key;
-                localStorage.setItem('geminiApiKey', key);
-                showAppContent();
-            } else {
-                showMessage('APIキーを入力してください。');
-            }
-        });
-
-        changeApiKeyBtn.addEventListener('click', () => {
-            userApiKey = '';
-            localStorage.removeItem('geminiApiKey');
-            apiKeyInput.value = '';
-            showApiKeyArea();
-        });
-        
-        dropZone.addEventListener('click', () => imageUpload.click());
-        imageUpload.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (file) handleFile(file);
-        });
-        dropZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            dropZone.classList.add('drag-over');
-        });
-        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
-        dropZone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            dropZone.classList.remove('drag-over');
-            const file = e.dataTransfer.files[0];
-            if (file) handleFile(file);
-        });
-        resetBtn.addEventListener('click', resetUI);
-
-        function showMessage(message, type = 'error') {
-            messageBox.textContent = message;
-            messageBox.className = `message-box ${type} show`;
-            setTimeout(() => {
-                messageBox.classList.remove('show');
-            }, 5000);
-        }
-
-        function handleFile(file) {
-            if (!file.type.startsWith('image/')) {
-                showMessage('画像ファイルを選択してください。');
-                return;
-            }
-            if (file.size > 20 * 1024 * 1024) { // 20MB
-                 showMessage('ファイルサイズが大きすぎます。20MB以下の画像を選択してください。');
-                 return;
-            }
-
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const base64Image = e.target.result;
-                originalImage.src = base64Image;
-                
-                uploadArea.classList.add('hidden');
-                resultArea.classList.remove('hidden');
-                loadingSpinner.classList.remove('hidden');
-                imageDisplay.classList.add('hidden');
-                controls.classList.add('hidden');
-
-                resizeImage(base64Image, (resizedBase64) => {
-                    removeBackground(resizedBase64, 'image/jpeg');
-                });
-            };
-            reader.readAsDataURL(file);
-        }
-
-        function resizeImage(base64Str, callback) {
-            const MAX_DIMENSION = 1024;
-            const img = new Image();
-            img.src = base64Str;
-            img.onload = () => {
-                let width = img.width;
-                let height = img.height;
-
-                if (width > height) {
-                    if (width > MAX_DIMENSION) {
-                        height *= MAX_DIMENSION / width;
-                        width = MAX_DIMENSION;
-                    }
-                } else {
-                    if (height > MAX_DIMENSION) {
-                        width *= MAX_DIMENSION / height;
-                        height = MAX_DIMENSION;
-                    }
-                }
-
-                const canvas = document.createElement('canvas');
-                canvas.width = width;
-                canvas.height = height;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0, width, height);
-                
-                const resizedBase64 = canvas.toDataURL('image/jpeg', 0.9);
-                callback(resizedBase64);
-            };
-            img.onerror = () => {
-                showMessage('画像の読み込みに失敗しました。');
-                resetUI();
-            };
-        }
-
-        async function removeBackground(base64ImageData, mimeType) {
-            if (!userApiKey) {
-                showMessage('APIキーが設定されていません。');
-                resetUI();
-                showApiKeyArea();
-                return;
-            }
-            
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview-image-generation:generateContent?key=${userApiKey}`;
-            const pureBase64 = base64ImageData.split(',')[1];
-
-            const payload = {
-                contents: [{
-                    parts: [
-                        { text: "Remove the background from the following image and make it transparent. The output should be a PNG with a transparent background." },
-                        { inlineData: { mimeType: mimeType, data: pureBase64 } }
-                    ]
-                }],
-                // ★修正点: エラーメッセージに基づき、TEXTを追加
-                generationConfig: { responseModalities: ['IMAGE', 'TEXT'] },
-            };
-
-            try {
-                const response = await fetch(apiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-
-                if (!response.ok) {
-                    const errorBody = await response.json().catch(() => response.text());
-                    console.error('Full API Error Response:', errorBody);
-                    const specificMessage = errorBody?.error?.message || '不明なエラーが発生しました。';
-                    if (response.status === 400) {
-                         throw new Error(`リクエストが無効です: ${specificMessage} (${response.status})`);
-                    }
-                    throw new Error(`${specificMessage} (ステータス: ${response.status})`);
-                }
-
-                const result = await response.json();
-                const imagePart = result?.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
-
-                if (imagePart) {
-                    const imageUrl = `data:image/png;base64,${imagePart.inlineData.data}`;
-                    resultImage.src = imageUrl;
-                    downloadBtn.href = imageUrl;
-
-                    loadingSpinner.classList.add('hidden');
-                    imageDisplay.classList.remove('hidden');
-                    controls.classList.remove('hidden');
-                } else {
-                    throw new Error('APIから有効な画像データが返されませんでした。');
-                }
-            } catch (error) {
-                console.error('処理に失敗:', error);
-                showMessage(error.message);
-                resetUI();
-            }
-        }
-
-        function resetUI() {
-            uploadArea.classList.remove('hidden');
-            resultArea.classList.add('hidden');
-            loadingSpinner.classList.add('hidden');
-            imageDisplay.classList.add('hidden');
-            controls.classList.add('hidden');
-            imageUpload.value = '';
-            resultImage.src = '';
-            downloadBtn.href = '#';
-        }
+      });
     </script>
-</body>
+  </body>
 </html>
